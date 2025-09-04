@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Envios - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .container {
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .logo h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .logo p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .credit {
+            font-weight: bold;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+            color: #999;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .btn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .form-content {
+            display: none;
+        }
+
+        .form-content.active {
+            display: block;
+        }
+
+        .password-requirements {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .auth-card {
+                padding: 25px;
+                margin: 10px;
+            }
+            
+            .logo h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo -->
+        <div class="logo">
+            <h1>🚀 Auto Envios</h1>
+            <p class="credit">Crédito para <strong>Wallysson Studio Dv 2025</strong></p>
+            <p>"Você sonha, Deus realiza"</p>
+        </div>
+
+        <!-- Card de Autenticação -->
+        <div class="auth-card">
+            <!-- Tabs -->
+            <div class="auth-tabs">
+                <button class="tab active" onclick="switchTab('login')">Entrar</button>
+                <button class="tab" onclick="switchTab('register')">Cadastrar</button>
+            </div>
+
+            <!-- Alertas -->
+            <div id="alert" class="alert"></div>
+
+            <!-- Loading -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Processando...</p>
+            </div>
+
+            <!-- Formulário de Login -->
+            <div id="loginForm" class="form-content active">
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Usuário:</label>
+                        <input type="text" id="loginUsername" placeholder="Digite seu usuário" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Senha:</label>
+                        <input type="password" id="loginPassword" placeholder="Digite sua senha" required>
+                    </div>
+                    
+                    <button type="submit" class="btn">Entrar</button>
+                </form>
+            </div>
+
+            <!-- Formulário de Cadastro -->
+            <div id="registerForm" class="form-content">
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label>Usuário:</label>
+                        <input type="text" id="registerUsername" placeholder="Escolha um usuário" required minlength="3">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Email:</label>
+                        <input type="email" id="registerEmail" placeholder="Digite seu email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Senha:</label>
+                        <input type="password" id="registerPassword" placeholder="Crie uma senha" required minlength="6">
+                        <div class="password-requirements">
+                            Mínimo 6 caracteres
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Confirmar Senha:</label>
+                        <input type="password" id="registerConfirmPassword" placeholder="Confirme sua senha" required>
+                    </div>
+                    
+                    <button type="submit" class="btn">Cadastrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Verificar se já está logado
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                // Verificar se token é válido
+                fetch('/api/config', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Token válido, redirecionar para app
+                        window.location.href = '/app';
+                    } else {
+                        // Token inválido, remover
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('userData');
+                    }
+                })
+                .catch(() => {
+                    // Erro na verificação, remover token
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userData');
+                });
+            }
+        });
+
+        function switchTab(tab) {
+            // Remover classe active das tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.form-content').forEach(f => f.classList.remove('active'));
+            
+            // Ativar tab selecionada
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Form').classList.add('active');
+            
+            // Limpar alertas
+            hideAlert();
+        }
+
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+        }
+
+        function hideAlert() {
+            const alert = document.getElementById('alert');
+            alert.style.display = 'none';
+        }
+
+        function showLoading(show = true) {
+            const loading = document.getElementById('loading');
+            const buttons = document.querySelectorAll('.btn');
+            
+            if (show) {
+                loading.style.display = 'block';
+                buttons.forEach(btn => btn.disabled = true);
+            } else {
+                loading.style.display = 'none';
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!username || !password) {
+                showAlert('Preencha todos os campos');
+                return;
+            }
+            
+            showLoading(true);
+            hideAlert();
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Login bem-sucedido
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('userData', JSON.stringify(data.user));
+                    
+                    showAlert('Login realizado com sucesso! Redirecionando...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/app';
+                    }, 1500);
+                } else {
+                    showAlert(data.error || 'Erro no login');
+                }
+            } catch (error) {
+                showAlert('Erro de conexão. Tente novamente.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('registerConfirmPassword').value;
+            
+            // Validações
+            if (!username || !email || !password || !confirmPassword) {
+                showAlert('Preencha todos os campos');
+                return;
+            }
+            
+            if (username.length < 3) {
+                showAlert('Usuário deve ter pelo menos 3 caracteres');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showAlert('Senha deve ter pelo menos 6 caracteres');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showAlert('Senhas não conferem');
+                return;
+            }
+            
+            // Validar email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showAlert('Email inválido');
+                return;
+            }
+            
+            showLoading(true);
+            hideAlert();
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showAlert('Usuário criado com sucesso! Faça login.', 'success');
+                    
+                    // Limpar formulário
+                    document.getElementById('registerUsername').value = '';
+                    document.getElementById('registerEmail').value = '';
+                    document.getElementById('registerPassword').value = '';
+                    document.getElementById('registerConfirmPassword').value = '';
+                    
+                    // Mudar para tab de login após 2 segundos
+                    setTimeout(() => {
+                        switchTab('login');
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Erro no cadastro');
+                }
+            } catch (error) {
+                showAlert('Erro de conexão. Tente novamente.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Adicionar enter para submeter formulários
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const activeForm = document.querySelector('.form-content.active');
+                if (activeForm.id === 'loginForm') {
+                    document.querySelector('#loginForm form').dispatchEvent(new Event('submit'));
+                } else {
+                    document.querySelector('#registerForm form').dispatchEvent(new Event('submit'));
+                }
+            }
+        });
+    </script>
+</body>
+</html>
