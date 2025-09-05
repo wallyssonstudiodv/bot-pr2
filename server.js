@@ -803,3 +803,44 @@ process.on('SIGINT', async () => {
   server.close(() => {
     console.log('Servidor encerrado');
     process.exit(0);
+  });
+});
+
+// Iniciar servidor
+const PORT = process.env.PORT || 3000;
+
+async function startServer() {
+  try {
+    // Criar diretórios necessários
+    await fs.ensureDir('./data');
+    await fs.ensureDir('./data/users');
+    await fs.ensureDir('./bot');
+    await fs.ensureDir('./public');
+    
+    // Verificar permissões
+    console.log('Verificando permissões de escrita...');
+    const testFile = './data/test.json';
+    await fs.writeJSON(testFile, { test: true });
+    await fs.remove(testFile);
+    console.log('✅ Permissões de escrita OK');
+    
+    server.listen(PORT, () => {
+      console.log('🎉 ========================================');
+      console.log('    AUTO ENVIOS BOT MULTI-USUÁRIO');
+      console.log('    Wallysson Studio Dv 2025');
+      console.log('    "Você sonha, Deus realiza"');
+      console.log('========================================');
+      console.log(`🚀 Servidor rodando na porta ${PORT}`);
+      console.log(`📱 Acesse: http://localhost:${PORT}`);
+      console.log(`⚡ Status: ONLINE`);
+      console.log(`📂 Diretório: ${process.cwd()}`);
+      console.log('========================================');
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao iniciar servidor:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
