@@ -224,7 +224,7 @@ async function sendVideoWithAntiBot(userId, groupIds) {
         // Delay entre grupos (exceto o último do lote)
         if (groupIndex < batch.length - 1) {
           log(`⏳ Aguardando ${antiBanSettings.delayBetweenGroups}s antes do próximo grupo...`, 'info', userId);
-          await new Promise(resolve => setTimeout(resolve, antiBanSettings.delayBetweenGroups * 1000));
+          await delay(antiBanSettings.delayBetweenGroups * 1000);
         }
         
       } catch (error) {
@@ -235,12 +235,17 @@ async function sendVideoWithAntiBot(userId, groupIds) {
     // Delay entre lotes (exceto o último)
     if (batchIndex < batches.length - 1) {
       log(`⏳ Aguardando ${antiBanSettings.batchDelay}s antes do próximo lote...`, 'info', userId);
-      await new Promise(resolve => setTimeout(resolve, antiBanSettings.batchDelay * 1000));
+      await delay(antiBanSettings.batchDelay * 1000);
     }
   }
   
   log(`✅ Envio completo: ${sentCount}/${totalGroups} grupos`, 'success', userId);
   return sentCount;
+}
+
+// Função helper para delay
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Inicializar bot do usuário
@@ -687,7 +692,7 @@ process.on('SIGINT', async () => {
 });
 
 // Iniciar servidor
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 async function startServer() {
   try {
