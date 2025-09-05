@@ -83,21 +83,33 @@ function log(message, type = 'info', userId = null) {
   }
 }
 
+// Função helper para delay
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Gerenciamento de usuários (arquivo JSON simples)
 async function loadUsers() {
   try {
     await fs.ensureDir('./data');
     const usersPath = './data/users.json';
     
+    console.log('Tentando carregar usuários de:', path.resolve(usersPath));
+    
     if (await fs.pathExists(usersPath)) {
-      return await fs.readJSON(usersPath);
+      const data = await fs.readJSON(usersPath);
+      console.log('Usuários carregados do arquivo:', Object.keys(data));
+      return data;
     }
     
     // Criar arquivo vazio
-    await fs.writeJSON(usersPath, {}, { spaces: 2 });
-    return {};
+    const emptyUsers = {};
+    await fs.writeJSON(usersPath, emptyUsers, { spaces: 2 });
+    console.log('Arquivo users.json criado vazio em:', path.resolve(usersPath));
+    return emptyUsers;
   } catch (error) {
     console.error('Erro ao carregar usuários:', error.message);
+    console.error('Stack completo:', error.stack);
     return {};
   }
 }
@@ -105,10 +117,33 @@ async function loadUsers() {
 async function saveUsers(users) {
   try {
     await fs.ensureDir('./data');
-    await fs.writeJSON('./data/users.json', users, { spaces: 2 });
-    return true;
+    const usersPath = './data/users.json';
+    
+    console.log('Tentando salvar usuários:', Object.keys(users));
+    console.log('Caminho do arquivo:', path.resolve(usersPath));
+    
+    await fs.writeJSON(usersPath, users, { spaces: 2 });
+    console.log('Arquivo salvo com sucesso');
+    
+    // Verificar se foi salvo corretamente
+    if (await fs.pathExists(usersPath)) {
+      const saved = await fs.readJSON(usersPath);
+      console.log('Verificação após salvar:', Object.keys(saved));
+      
+      if (Object.keys(saved).length === Object.keys(users).length) {
+        console.log('✅ Usuários salvos corretamente');
+        return true;
+      } else {
+        console.error('❌ Dados não foram salvos corretamente');
+        return false;
+      }
+    } else {
+      console.error('❌ Arquivo não foi criado');
+      return false;
+    }
   } catch (error) {
     console.error('Erro ao salvar usuários:', error.message);
+    console.error('Stack completo:', error.stack);
     return false;
   }
 }
@@ -241,11 +276,6 @@ async function sendVideoWithAntiBot(userId, groupIds) {
   
   log(`✅ Envio completo: ${sentCount}/${totalGroups} grupos`, 'success', userId);
   return sentCount;
-}
-
-// Função helper para delay
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Inicializar bot do usuário
@@ -422,7 +452,7 @@ io.on('connection', (socket) => {
       }
       
       // Aguardar um pouco para garantir desconexão
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await delay(2000);
       
       // Limpar diretório de sessões do usuário
       const sessionsPath = `./data/users/${userId}/sessions`;
@@ -494,27 +524,38 @@ app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
+    console.log('=== DEBUG REGISTER ===');
+    console.log('Username:', username);
+    console.log('Email:', email);
+    console.log('Password fornecida:', !!password);
+    
     if (!username || !email || !password) {
+      console.log('❌ Campos obrigatórios faltando');
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
     }
     
     if (password.length < 6) {
+      console.log('❌ Senha muito curta');
       return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres' });
     }
     
     const users = await loadUsers();
+    console.log('Usuários existentes antes do cadastro:', Object.keys(users));
     
     // Verificar se usuário já existe
     if (users[username] || Object.values(users).some(u => u.email === email)) {
+      console.log('❌ Usuário ou email já existe');
       return res.status(400).json({ error: 'Usuário ou email já existe' });
     }
     
     // Hash da senha
+    console.log('Criando hash da senha...');
     const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('Hash da senha criado');
     
     // Criar usuário
     const userId = Date.now().toString();
-    users[username] = {
+    const newUser = {
       id: userId,
       username,
       email,
@@ -522,15 +563,38 @@ app.post('/api/register', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     
-    await saveUsers(users);
+    users[username] = newUser;
     
-    // Criar diretório do usuário
-    await fs.ensureDir(`./data/users/${userId}`);
-    await fs.ensureDir(`./data/users/${userId}/sessions`);
+    console.log('Usuário criado na memória:', {
+      id: userId,
+      username,
+      email,
+      hasPassword: !!hashedPassword
+    });
     
-    log(`Novo usuário registrado: ${username}`, 'info');
+    // Salvar no arquivo
+    console.log('Salvando usuário no arquivo...');
+    const saved = await saveUsers(users);
     
-    res.json({ success: true, message: 'Usuário criado com sucesso' });
+    if (saved) {
+      console.log('✅ Usuário salvo no arquivo');
+      
+      // Criar diretório do usuário
+      try {
+        await fs.ensureDir(`./data/users/${userId}`);
+        await fs.ensureDir(`./data/users/${userId}/sessions`);
+        console.log('✅ Diretórios do usuário criados');
+      } catch (dirError) {
+        console.error('Erro ao criar diretórios:', dirError);
+      }
+      
+      log(`Novo usuário registrado: ${username}`, 'info');
+      
+      res.json({ success: true, message: 'Usuário criado com sucesso' });
+    } else {
+      console.log('❌ Erro ao salvar usuário');
+      res.status(500).json({ error: 'Erro ao salvar usuário no arquivo' });
+    }
   } catch (error) {
     console.error('Erro no registro:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -541,21 +605,50 @@ app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
+    console.log('=== DEBUG LOGIN ===');
+    console.log('Username recebido:', username);
+    console.log('Password recebido:', password ? '[SENHA FORNECIDA]' : '[SEM SENHA]');
+    
     if (!username || !password) {
+      console.log('❌ Campos obrigatórios faltando');
       return res.status(400).json({ error: 'Username e senha são obrigatórios' });
     }
     
+    // Carregar usuários
     const users = await loadUsers();
+    console.log('Usuários carregados:', Object.keys(users));
+    console.log('Total de usuários:', Object.keys(users).length);
+    
+    // Debug: mostrar estrutura do primeiro usuário
+    if (Object.keys(users).length > 0) {
+      const firstUserKey = Object.keys(users)[0];
+      const firstUser = users[firstUserKey];
+      console.log('Estrutura do primeiro usuário:', {
+        key: firstUserKey,
+        username: firstUser.username,
+        hasPassword: !!firstUser.password,
+        email: firstUser.email
+      });
+    }
+    
+    // Buscar usuário
     const user = users[username];
+    console.log('Usuário encontrado:', !!user);
     
     if (!user) {
+      console.log('❌ Usuário não encontrado na base');
+      console.log('Usuários disponíveis:', Object.keys(users));
       return res.status(400).json({ error: 'Usuário não encontrado' });
     }
     
+    console.log('Verificando senha...');
+    
     // Verificar senha
     const passwordValid = await bcrypt.compare(password, user.password);
+    console.log('Senha válida:', passwordValid);
     
     if (!passwordValid) {
+      console.log('❌ Senha incorreta');
       return res.status(400).json({ error: 'Senha incorreta' });
     }
     
@@ -571,6 +664,7 @@ app.post('/api/login', async (req, res) => {
     req.session.userId = user.id;
     req.session.username = user.username;
     
+    console.log('✅ Login bem-sucedido');
     log(`Usuário logado: ${username}`, 'info', user.id);
     
     res.json({
@@ -591,6 +685,27 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session.destroy();
   res.json({ success: true });
+});
+
+// Rota de debug - REMOVER EM PRODUÇÃO
+app.get('/debug/users', async (req, res) => {
+  try {
+    const users = await loadUsers();
+    const usersPath = './data/users.json';
+    const exists = await fs.pathExists(usersPath);
+    const stats = exists ? await fs.stat(usersPath) : null;
+    
+    res.json({
+      usersCount: Object.keys(users).length,
+      users: Object.keys(users),
+      fileExists: exists,
+      fileSize: stats ? stats.size : 0,
+      filePath: path.resolve(usersPath),
+      workingDirectory: process.cwd()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
 });
 
 // Rotas principais
@@ -688,36 +803,3 @@ process.on('SIGINT', async () => {
   server.close(() => {
     console.log('Servidor encerrado');
     process.exit(0);
-  });
-});
-
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-
-async function startServer() {
-  try {
-    // Criar diretórios necessários
-    await fs.ensureDir('./data');
-    await fs.ensureDir('./data/users');
-    await fs.ensureDir('./bot');
-    await fs.ensureDir('./public');
-    
-    server.listen(PORT, () => {
-      console.log('🎉 ========================================');
-      console.log('    AUTO ENVIOS BOT MULTI-USUÁRIO');
-      console.log('    Wallysson Studio Dv 2025');
-      console.log('    "Você sonha, Deus realiza"');
-      console.log('========================================');
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`📱 Acesse: http://localhost:${PORT}`);
-      console.log(`⚡ Status: ONLINE`);
-      console.log('========================================');
-    });
-    
-  } catch (error) {
-    console.error('❌ Erro ao iniciar servidor:', error.message);
-    process.exit(1);
-  }
-}
-
-startServer();
