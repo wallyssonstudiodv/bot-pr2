@@ -27,7 +27,10 @@ const WhatsAppBot = require('./bot/whatsapp-bot');
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
 // Middleware
@@ -45,8 +48,8 @@ app.use(session({
 }));
 
 // Instâncias dos bots por usuário
-const userBots = new Map();
-const activeTasks = new Map();
+const userBots = new Map(); // userId -> WhatsAppBot instance
+const activeTasks = new Map(); // userId -> Map(scheduleId -> cronJob)
 
 // Configurações padrão
 const defaultUserConfig = {
@@ -63,16 +66,19 @@ const defaultUserConfig = {
   }
 };
 
-// Função de log
+// Função para log por usuário
 function log(message, type = 'info', userId = null) {
   const timestamp = new Date().toISOString();
   const userPrefix = userId ? `[User:${userId}] ` : '';
   const logEntry = `[${timestamp}] ${userPrefix}${type.toUpperCase()}: ${message}`;
   console.log(logEntry);
-  if (userId) io.to(`user_${userId}`).emit('log', { message, type, timestamp });
+
+  if (userId) {
+    io.to(`user_${userId}`).emit('log', { message, type, timestamp });
+  }
 }
 
-// Delay helper
+// Função helper para delay
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -108,7 +114,7 @@ async function saveUsers(users) {
   }
 }
 
-// Configuração por usuário
+// Funções de configuração por usuário
 async function loadUserConfig(userId) {
   try {
     await fs.ensureDir(`./data/users/${userId}`);
@@ -149,7 +155,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Socket.IO auth
+// Middleware de autenticação Socket.IO
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth.token;
@@ -164,7 +170,7 @@ io.use(async (socket, next) => {
   }
 });
 
-// Envio com anti-ban
+// Função de envio com anti-ban
 async function sendVideoWithAntiBot(userId, groupIds) {
   const userBot = userBots.get(userId);
   if (!userBot || !userBot.isConnected()) throw new Error('Bot não conectado');
@@ -214,9 +220,12 @@ async function sendVideoWithAntiBot(userId, groupIds) {
   return sentCount;
 }
 
-// Inicializar bot
+// ==========================
+// Inicializar WhatsApp Bot
+// ==========================
 async function initBot(userId) {
   if (userBots.has(userId)) return userBots.get(userId);
+
   const config = await loadUserConfig(userId);
   const bot = new WhatsAppBot(userId, config);
 
@@ -232,7 +241,9 @@ async function initBot(userId) {
     await saveUserConfig(userId, config);
   });
 
-  bot.on('error', (error) => log(`Erro do bot: ${error.message}`, 'error', userId));
+  bot.on('error', (error) => {
+    log(`Erro do bot: ${error.message}`, 'error', userId);
+  });
 
   userBots.set(userId, bot);
   await bot.start();
@@ -240,29 +251,15 @@ async function initBot(userId) {
 }
 
 // ==========================
-// ROTAS GET
+// Rotas REST
 // ==========================
 
-// Página login
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// Página principal (após login)
-app.get('/app', authenticateToken, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'app.html'));
-});
-
-// ==========================
-// ROTAS API
-// ==========================
-
-// Login
+// Login do usuário
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   const users = await loadUsers();
-  if (!users[username]) return res.status(401).json({ error: 'Usuário não encontrado' });
 
+  if (!users[username]) return res.status(401).json({ error: 'Usuário não encontrado' });
   const valid = await bcrypt.compare(password, users[username].passwordHash);
   if (!valid) return res.status(403).json({ error: 'Senha incorreta' });
 
@@ -282,22 +279,24 @@ app.post('/api/users', async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   users[username] = { passwordHash, createdAt: new Date().toISOString() };
   await saveUsers(users);
-  await loadUserConfig(username);
+
+  await loadUserConfig(username); // Criar config padrão
 
   res.json({ message: 'Usuário criado com sucesso' });
 });
 
-// Status do bot
+// Obter status do bot
 app.get('/api/bot/status', authenticateToken, async (req, res) => {
   const userId = req.user.id;
   const bot = userBots.get(userId);
   res.json({ connected: bot?.isConnected() || false });
 });
 
-// Enviar vídeo
+// Iniciar envio para grupos
 app.post('/api/bot/send', authenticateToken, async (req, res) => {
   const userId = req.user.id;
   const { groupIds } = req.body;
+
   if (!groupIds || !Array.isArray(groupIds)) return res.status(400).json({ error: 'groupIds inválido' });
 
   try {
@@ -310,7 +309,7 @@ app.post('/api/bot/send', authenticateToken, async (req, res) => {
 });
 
 // ==========================
-// Socket.IO
+// Socket.IO events
 // ==========================
 io.on('connection', (socket) => {
   const userId = socket.userId;
@@ -326,11 +325,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => log('Cliente Socket desconectado', 'warn', userId));
+  socket.on('disconnect', () => {
+    log('Cliente Socket desconectado', 'warn', userId);
+  });
 });
 
 // ==========================
-// Cron jobs
+// Cron jobs e tarefas automáticas
 // ==========================
 async function scheduleUserTasks(userId) {
   const config = await loadUserConfig(userId);
@@ -358,11 +359,20 @@ async function scheduleUserTasks(userId) {
 // Inicialização do servidor
 // ==========================
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, async () => {
+server.listen(PORT, () => {
   console.log(`🌐 Servidor rodando em http://localhost:${PORT}`);
 
-  const users = await loadUsers();
-  for (const username of Object.keys(users)) await scheduleUserTasks(username);
+  // Inicializa tarefas de todos os usuários existentes
+  (async () => {
+    try {
+      const users = await loadUsers();
+      for (const username of Object.keys(users)) {
+        await scheduleUserTasks(username);
+      }
+    } catch (err) {
+      console.error('Erro ao inicializar tarefas dos usuários:', err.message);
+    }
+  })();
 });
 
 // ==========================
@@ -370,7 +380,9 @@ server.listen(PORT, async () => {
 // ==========================
 async function shutdown() {
   console.log('🛑 Encerrando aplicação...');
-  for (const [userId, bot] of userBots.entries()) try { await bot.disconnect(); } catch {}
+  for (const [userId, bot] of userBots.entries()) {
+    try { await bot.disconnect(); } catch {}
+  }
   server.close(() => process.exit(0));
   process.exit(0);
 }
