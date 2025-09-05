@@ -22,7 +22,7 @@ try {
   process.exit(1);
 }
 
-const WhatsAppBot = require('./bot/whatsapp-bot');
+const WhatsAppBot = require('./bot/whatsapp-web');
 
 const app = express();
 const server = createServer(app);
