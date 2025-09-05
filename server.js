@@ -121,14 +121,23 @@ async function saveUsers(users) {
     
     console.log('Tentando salvar usuários:', Object.keys(users));
     console.log('Caminho do arquivo:', path.resolve(usersPath));
+    console.log('Dados a serem salvos:', JSON.stringify(users, null, 2));
     
-    await fs.writeJSON(usersPath, users, { spaces: 2 });
-    console.log('Arquivo salvo com sucesso');
+    // Salvar com método mais direto
+    const jsonString = JSON.stringify(users, null, 2);
+    await fs.writeFile(usersPath, jsonString, 'utf8');
+    console.log('Arquivo salvo com writeFile');
+    
+    // Aguardar um pouco para garantir que foi escrito
+    await delay(100);
     
     // Verificar se foi salvo corretamente
     if (await fs.pathExists(usersPath)) {
-      const saved = await fs.readJSON(usersPath);
-      console.log('Verificação após salvar:', Object.keys(saved));
+      const rawData = await fs.readFile(usersPath, 'utf8');
+      console.log('Conteúdo raw do arquivo:', rawData);
+      
+      const saved = JSON.parse(rawData);
+      console.log('Dados parseados:', Object.keys(saved));
       
       if (Object.keys(saved).length === Object.keys(users).length) {
         console.log('✅ Usuários salvos corretamente');
@@ -149,35 +158,36 @@ async function saveUsers(users) {
 }
 
 // Carregar configurações do usuário
-async function loadUserConfig(userId) {
+async function loadUsers() {
   try {
-    await fs.ensureDir(`./data/users/${userId}`);
-    const configPath = `./data/users/${userId}/settings.json`;
+    await fs.ensureDir('./data');
+    const usersPath = './data/users.json';
     
-    if (await fs.pathExists(configPath)) {
-      const config = await fs.readJSON(configPath);
-      return { ...defaultUserConfig, ...config };
+    console.log('Tentando carregar usuários de:', path.resolve(usersPath));
+    
+    if (await fs.pathExists(usersPath)) {
+      const rawData = await fs.readFile(usersPath, 'utf8');
+      console.log('Conteúdo raw carregado:', rawData);
+      
+      if (rawData.trim() === '' || rawData === '{}') {
+        console.log('Arquivo vazio, retornando objeto vazio');
+        return {};
+      }
+      
+      const data = JSON.parse(rawData);
+      console.log('Usuários carregados do arquivo:', Object.keys(data));
+      return data;
     }
     
-    // Criar arquivo padrão
-    await fs.writeJSON(configPath, defaultUserConfig, { spaces: 2 });
-    return defaultUserConfig;
+    // Criar arquivo vazio
+    const emptyUsers = {};
+    await fs.writeFile(usersPath, JSON.stringify(emptyUsers, null, 2), 'utf8');
+    console.log('Arquivo users.json criado vazio em:', path.resolve(usersPath));
+    return emptyUsers;
   } catch (error) {
-    log('Erro ao carregar configurações: ' + error.message, 'error', userId);
-    return defaultUserConfig;
-  }
-}
-
-// Salvar configurações do usuário
-async function saveUserConfig(userId, config) {
-  try {
-    await fs.ensureDir(`./data/users/${userId}`);
-    await fs.writeJSON(`./data/users/${userId}/settings.json`, config, { spaces: 2 });
-    log('Configurações salvas', 'success', userId);
-    return true;
-  } catch (error) {
-    log('Erro ao salvar configurações: ' + error.message, 'error', userId);
-    return false;
+    console.error('Erro ao carregar usuários:', error.message);
+    console.error('Stack completo:', error.stack);
+    return {};
   }
 }
 
